@@ -8,6 +8,8 @@ import com.example.emergency_app.data.MessageType
 import com.example.emergency_app.wifi.WifiDirectManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import com.example.emergency_app.service.NotificationHelper
@@ -33,6 +35,11 @@ class MeshRouter(
         android.provider.Settings.Secure.ANDROID_ID
     )
 
+    // tracks the deviceId of whoever is currently connected
+    // updated automatically as soon as we receive their first message
+    private val _currentPeerId = MutableStateFlow<String?>(null)
+    val currentPeerId: StateFlow<String?> = _currentPeerId
+
     init {
         // listen for incoming messages from bluetooth
         scope.launch {
@@ -49,7 +56,7 @@ class MeshRouter(
         }
     }
 
-    // send a new chat message
+    // send a new chat message — goes to whichever peer is currently connected
     fun sendChatMessage(content: String, senderName: String) {
         val message = MeshMessage(
             id = UUID.randomUUID().toString(),
@@ -61,20 +68,21 @@ class MeshRouter(
             hopCount = 0,
             priority = MessagePriority.NORMAL,
             type = MessageType.CHAT,
-            isMine = true
+            isMine = true,
+            recipientId = _currentPeerId.value // tag with current peer
         )
         scope.launch {
             saveAndBroadcast(message)
         }
     }
 
-    // send an SOS message with location
+    // send an SOS message with location — broadcast, no specific recipient
     fun sendSosMessage(senderName: String) {
         val locationHelper = LocationHelper(context)
         val location = locationHelper.getCurrentLocation()
 
         val locationText = if (location != null) {
-            "\n${locationHelper.formatLocation(location.latitude, location.longitude)}"
+            "\n📍 https://maps.google.com/?q=${location.latitude},${location.longitude}"
         } else {
             "\n📍 Location unavailable"
         }
@@ -91,7 +99,8 @@ class MeshRouter(
             type = MessageType.SOS,
             isMine = true,
             latitude = location?.latitude,
-            longitude = location?.longitude
+            longitude = location?.longitude,
+            recipientId = _currentPeerId.value // tag with current peer if any
         )
 
         scope.launch {
@@ -124,7 +133,11 @@ class MeshRouter(
             // mark as seen
             markSeen(message.id)
 
-            // save to database
+            // update current connected peer — this is who we're talking to now
+            _currentPeerId.value = message.senderId
+
+            // save to database — recipientId stays null for received messages,
+            // we use senderId directly when querying conversation
             messageDao.insertMessage(message.copy(delivered = true))
 
             //  show notification for incoming messages

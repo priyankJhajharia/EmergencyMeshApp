@@ -10,7 +10,6 @@ import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import android.view.View
-import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
@@ -33,11 +32,12 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var recyclerMessages: RecyclerView
     private lateinit var etMessage: EditText
-    private lateinit var btnSend: Button
-    private lateinit var btnSos: Button
+    private lateinit var btnSend: ImageButton
+    private lateinit var tvWifiStatus: TextView
     private lateinit var tvPeerCount: TextView
     private lateinit var tvMenuStatus: TextView
-    private lateinit var tvConnectionDot: TextView
+    private lateinit var tvConnectionDot: View
+    private lateinit var tvSubtitle: TextView
     private lateinit var btnMenu: ImageButton
     private lateinit var drawerMenu: LinearLayout
     private lateinit var drawerOverlay: View
@@ -59,6 +59,7 @@ class MainActivity : AppCompatActivity() {
                 Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.ACCESS_COARSE_LOCATION,
                 Manifest.permission.SEND_SMS,
+                Manifest.permission.RECEIVE_SMS,  // ← ADD THIS
                 Manifest.permission.POST_NOTIFICATIONS,
                 Manifest.permission.NEARBY_WIFI_DEVICES
             )
@@ -69,7 +70,8 @@ class MainActivity : AppCompatActivity() {
                 Manifest.permission.BLUETOOTH_ADVERTISE,
                 Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.ACCESS_COARSE_LOCATION,
-                Manifest.permission.SEND_SMS
+                Manifest.permission.SEND_SMS,
+                Manifest.permission.RECEIVE_SMS  // ← ADD THIS
             )
         } else {
             arrayOf(
@@ -77,11 +79,11 @@ class MainActivity : AppCompatActivity() {
                 Manifest.permission.BLUETOOTH_ADMIN,
                 Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.ACCESS_COARSE_LOCATION,
-                Manifest.permission.SEND_SMS
+                Manifest.permission.SEND_SMS,
+                Manifest.permission.RECEIVE_SMS  // ← ADD THIS
             )
         }
 
-    // ✅ fixed serviceConnection with proper onServiceConnected
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             val meshBinder = binder as MeshService.MeshBinder
@@ -100,19 +102,19 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // white status bar with black icons
-        window.statusBarColor = android.graphics.Color.WHITE
-        window.decorView.systemUiVisibility =
-            android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+        // dark status bar with white icons
+        window.statusBarColor = android.graphics.Color.parseColor("#111111")
+        window.decorView.systemUiVisibility = 0
 
         // initialize views
         recyclerMessages = findViewById(R.id.recyclerMessages)
         etMessage = findViewById(R.id.etMessage)
         btnSend = findViewById(R.id.btnSend)
-        btnSos = findViewById(R.id.btnSos)
         tvPeerCount = findViewById(R.id.tvPeerCount)
         tvMenuStatus = findViewById(R.id.tvMenuStatus)
         tvConnectionDot = findViewById(R.id.tvConnectionDot)
+        tvWifiStatus = findViewById(R.id.tvWifiStatus)
+        tvSubtitle = findViewById(R.id.tvSubtitle)
         btnMenu = findViewById(R.id.btnMenu)
         drawerMenu = findViewById(R.id.drawerMenu)
         drawerOverlay = findViewById(R.id.drawerOverlay)
@@ -132,8 +134,6 @@ class MainActivity : AppCompatActivity() {
         } else {
             requestPermissions()
         }
-
-        observeMessages()
 
         // hamburger menu
         btnMenu.setOnClickListener {
@@ -163,17 +163,23 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<LinearLayout>(R.id.menuClearMessages).setOnClickListener {
             closeDrawer()
-            // confirm before clearing
+            val peerId = meshService?.meshRouter?.currentPeerId?.value
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("Clear Messages")
-                .setMessage("Delete all messages from this device?")
+                .setTitle("Clear Conversation")
+                .setMessage("Delete messages with this device?")
                 .setPositiveButton("Clear") { _, _ ->
                     lifecycleScope.launch {
-                        MessageDatabase.getDatabase(this@MainActivity)
-                            .messageDao()
-                            .deleteAllMessages()
+                        if (peerId != null) {
+                            MessageDatabase.getDatabase(this@MainActivity)
+                                .messageDao()
+                                .deleteConversationWithPeer(peerId)
+                        } else {
+                            MessageDatabase.getDatabase(this@MainActivity)
+                                .messageDao()
+                                .deleteAllMessages()
+                        }
                     }
-                    Toast.makeText(this, "Messages cleared", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Conversation cleared", Toast.LENGTH_SHORT).show()
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
@@ -194,61 +200,74 @@ class MainActivity : AppCompatActivity() {
             etMessage.text.clear()
         }
 
-        // SOS button
-        btnSos.setOnClickListener {
+        // SOS button — hold to send
+        val btnSos = findViewById<TextView>(R.id.btnSos)
+        btnSos.setOnLongClickListener {
             if (!isBound) {
                 Toast.makeText(this, "Mesh network not ready", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+                return@setOnLongClickListener true
             }
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("🆘 Send SOS?")
                 .setMessage("This will send an emergency alert with your location to all nearby devices and your emergency contacts.")
                 .setPositiveButton("YES, SEND SOS") { _, _ ->
                     meshService?.meshRouter?.sendSosMessage(userName)
-                    Toast.makeText(this, "SOS sent!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "🆘 SOS sent!", Toast.LENGTH_LONG).show()
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
+            true
+        }
+
+        // show hint for SOS
+        btnSos.setOnClickListener {
+            Toast.makeText(
+                this,
+                "Hold the SOS button to send emergency alert",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
-    // ✅ moved outside serviceConnection — correct place
     private fun startObserving() {
-        // BT connection status
+        observeMessages()
+        // BT status
         lifecycleScope.launch {
             meshService?.bluetoothManager?.connectionStatus?.collect { status ->
                 runOnUiThread {
                     tvPeerCount.text = status
+                    tvSubtitle.text = status
                     tvMenuStatus.text = status
                 }
             }
         }
 
-        // WiFi connection status
+        // ADD THIS — observe WiFi connection separately
         lifecycleScope.launch {
-            meshService?.wifiDirectManager?.connectionStatus?.collect { status ->
+            meshService?.wifiDirectManager?.isConnected?.collect { wifiConnected ->
                 runOnUiThread {
-                    tvPeerCount.text = status
-                    tvMenuStatus.text = status
+                    val btCount = meshService?.bluetoothManager?.connectedPeers?.value ?: 0
+                    tvConnectionDot.setBackgroundColor(
+                        if (btCount > 0 || wifiConnected)
+                            android.graphics.Color.parseColor("#30D158")
+                        else
+                            android.graphics.Color.parseColor("#636366")
+                    )
                 }
             }
         }
 
-        // peer count
+        // peer count — update connection dot
         lifecycleScope.launch {
             meshService?.bluetoothManager?.connectedPeers?.collect { count ->
                 runOnUiThread {
                     val wifiConnected =
                         meshService?.wifiDirectManager?.isConnected?.value ?: false
-                    val wifiStatus = if (wifiConnected) " | WiFi ✓" else ""
-                    val btStatus = if (count > 0) "$count BT peers" else "No BT peers"
-                    tvPeerCount.text = "$btStatus$wifiStatus"
-                    tvMenuStatus.text = "$btStatus$wifiStatus"
                     tvConnectionDot.setBackgroundColor(
                         if (count > 0 || wifiConnected)
-                            android.graphics.Color.GREEN
+                            android.graphics.Color.parseColor("#30D158")
                         else
-                            android.graphics.Color.parseColor("#888888")
+                            android.graphics.Color.parseColor("#636366")
                     )
                 }
             }
@@ -274,53 +293,74 @@ class MainActivity : AppCompatActivity() {
     private fun findPeers() {
         if (!isBound) return
 
-        val allDevices = meshService?.bluetoothManager
+        val pairedDevices: List<android.bluetooth.BluetoothDevice> = meshService?.bluetoothManager
             ?.scanForDevices(this) ?: emptyList()
+
+        val bleDevices: List<android.bluetooth.BluetoothDevice> =
+            meshService?.bleManager?.getDiscoveredDevices() ?: emptyList()
+
+        val allDevices: List<android.bluetooth.BluetoothDevice> = (pairedDevices + bleDevices)
+            .distinctBy { device: android.bluetooth.BluetoothDevice -> device.address }
 
         if (allDevices.isEmpty()) {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("No devices found")
-                .setMessage("Make sure other phone has app open and Bluetooth is ON")
+                .setMessage("Make sure other phone has app open, Bluetooth is ON and both phones are nearby")
                 .setPositiveButton("Open Bluetooth Settings") { _, _ ->
-                    startActivity(
-                        Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
-                    )
+                    startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS))
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
         } else {
-            val deviceNames = allDevices.map { device ->
-                "${device.name ?: "Unknown"} (${device.address})"
+            val deviceNames = allDevices.map { device: android.bluetooth.BluetoothDevice ->
+                val name = if (ContextCompat.checkSelfPermission(
+                        this, Manifest.permission.BLUETOOTH_CONNECT
+                    ) == PackageManager.PERMISSION_GRANTED)
+                    device.name ?: "Unknown" else "Unknown"
+                val type = if (bleDevices.any { b: android.bluetooth.BluetoothDevice ->
+                        b.address == device.address }) " [BLE]" else " [Paired]"
+                "$name$type (${device.address})"
             }.toTypedArray()
 
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("Select device to connect")
-                .setItems(deviceNames) { _, index ->
+                .setItems(deviceNames) { _, index: Int ->
                     val device = allDevices[index]
-                    Log.d("BT_DEBUG", "Connecting to: ${device.name}")
-                    Toast.makeText(
-                        this,
-                        "Connecting to ${device.name}...",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    val name = if (ContextCompat.checkSelfPermission(this,
+                            Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED)
+                        device.name ?: "Unknown" else "Unknown"
+                    Log.d("BT_DEBUG", "Connecting to: $name")
+                    Toast.makeText(this, "Connecting to $name...", Toast.LENGTH_SHORT).show()
                     meshService?.bluetoothManager?.connectToDevice(device)
                 }
                 .show()
         }
     }
 
-    private fun updateStatus(status: String) {
-        tvPeerCount.text = status
-        tvMenuStatus.text = status
-    }
+    private var currentMessagesJob: kotlinx.coroutines.Job? = null
 
     private fun observeMessages() {
-        val database = MessageDatabase.getDatabase(this)
+        // observe which peer we're currently connected to
         lifecycleScope.launch {
-            database.messageDao().getAllMessages().collect { messages ->
-                chatAdapter.updateMessages(messages)
-                if (messages.isNotEmpty()) {
-                    recyclerMessages.scrollToPosition(messages.size - 1)
+            meshService?.meshRouter?.currentPeerId?.collect { peerId ->
+                // cancel previous observer
+                currentMessagesJob?.cancel()
+
+                val database = MessageDatabase.getDatabase(this@MainActivity)
+
+                currentMessagesJob = lifecycleScope.launch {
+                    if (peerId != null) {
+                        // show only conversation with this peer
+                        database.messageDao().getConversationWithPeer(peerId).collect { messages ->
+                            chatAdapter.updateMessages(messages)
+                            if (messages.isNotEmpty()) {
+                                recyclerMessages.scrollToPosition(messages.size - 1)
+                            }
+                        }
+                    } else {
+                        // no peer connected yet — show empty
+                        chatAdapter.updateMessages(emptyList())
+                    }
                 }
             }
         }
@@ -330,8 +370,10 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, MeshService::class.java)
         ContextCompat.startForegroundService(this, intent)
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-        tvPeerCount.text = "Starting mesh network..."
-        tvMenuStatus.text = "Starting mesh network..."
+        tvPeerCount.text = "BT: Starting..."
+        tvWifiStatus.text = "WiFi: Starting..."
+        tvSubtitle.text = "Initializing mesh network..."
+        tvMenuStatus.text = "Initializing..."
     }
 
     private fun hasAllPermissions(): Boolean {
@@ -379,6 +421,5 @@ class MainActivity : AppCompatActivity() {
             unbindService(serviceConnection)
             isBound = false
         }
-        stopService(Intent(this, MeshService::class.java))
     }
 }

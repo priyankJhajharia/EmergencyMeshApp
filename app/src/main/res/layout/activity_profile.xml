@@ -4,94 +4,131 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F5F5F5">
+    android:background="@color/background"
+    android:fitsSystemWindows="true">
 
     <!-- Toolbar -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:background="#CC0000"
+        android:layout_height="56dp"
+        android:background="@color/toolbar"
         android:gravity="center_vertical"
-        android:padding="10dp">
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="16dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@null"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:tint="@color/text_primary"
+            android:contentDescription="Back" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="My Profile"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:textStyle="bold" />
+            android:text="MY PROFILE"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.1"
+            android:layout_marginStart="8dp" />
+
+    </LinearLayout>
+
+    <!-- Profile icon -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="24dp"
+        android:background="@color/surface">
+
+        <TextView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:background="@drawable/bg_send_button"
+            android:text="👤"
+            android:textSize="36sp"
+            android:gravity="center" />
+
+        <TextView
+            android:id="@+id/tvDeviceModel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginTop="8dp" />
 
     </LinearLayout>
 
     <!-- Profile form -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="389dp"
-        android:layout_margin="8dp"
-        android:background="#FFFFFF"
+        android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
-
-        <!-- Profile icon -->
-        <TextView
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:layout_gravity="center"
-            android:layout_marginBottom="16dp"
-            android:background="#CC0000"
-            android:gravity="center"
-            android:text="👤"
-            android:textSize="40sp" />
+        android:background="@color/surface"
+        android:padding="16dp"
+        android:layout_margin="12dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="4dp"
-            android:text="Your Name"
-            android:textColor="#666666"
-            android:textSize="14sp" />
+            android:text="DISPLAY NAME"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="@color/emergency_red"
+            android:letterSpacing="0.1"
+            android:layout_marginBottom="8dp" />
 
         <EditText
             android:id="@+id/etUserName"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:background="#EEEEEE"
+            android:layout_height="48dp"
             android:hint="Enter your name"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:background="@drawable/bg_input"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
             android:inputType="textPersonName"
-            android:padding="10dp"
-            android:textColor="#000000"
-            android:textColorHint="#999999" />
+            android:layout_marginBottom="12dp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="4dp"
-            android:text="Your Phone Number"
-            android:textColor="#666666"
-            android:textSize="14sp" />
+            android:text="PHONE NUMBER"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="@color/emergency_red"
+            android:letterSpacing="0.1"
+            android:layout_marginBottom="8dp" />
 
         <EditText
             android:id="@+id/etUserPhone"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:background="#EEEEEE"
+            android:layout_height="48dp"
             android:hint="+91XXXXXXXXXX"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:background="@drawable/bg_input"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
             android:inputType="phone"
-            android:padding="10dp"
-            android:textColor="#000000"
-            android:textColorHint="#999999" />
+            android:layout_marginBottom="16dp" />
 
         <Button
             android:id="@+id/btnSaveProfile"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="#CC0000"
-            android:padding="12dp"
-            android:text="Save Profile"
-            android:textColor="#FFFFFF" />
+            android:layout_height="48dp"
+            android:background="@drawable/bg_sos_button"
+            android:text="SAVE PROFILE"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:letterSpacing="0.05" />
 
     </LinearLayout>
 
@@ -100,33 +137,27 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#FFFFFF"
+        android:background="@color/surface"
         android:padding="16dp"
-        android:layout_margin="8dp">
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Device Info"
-            android:textSize="16sp"
+            android:text="DEVICE INFO"
+            android:textSize="11sp"
             android:textStyle="bold"
-            android:textColor="#CC0000"
+            android:textColor="@color/emergency_red"
+            android:letterSpacing="0.1"
             android:layout_marginBottom="8dp" />
 
         <TextView
             android:id="@+id/tvDeviceId"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="14sp"
-            android:textColor="#666666" />
-
-        <TextView
-            android:id="@+id/tvDeviceModel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="14sp"
-            android:textColor="#666666"
-            android:layout_marginTop="4dp" />
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary" />
 
     </LinearLayout>
 

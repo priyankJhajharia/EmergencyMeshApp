@@ -3,6 +3,7 @@ package com.example.emergency_app.ui
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -18,6 +19,8 @@ class ContactsActivity : AppCompatActivity() {
     private lateinit var etName: EditText
     private lateinit var etPhone: EditText
     private lateinit var btnAdd: Button
+    private lateinit var btnBack: android.widget.ImageButton
+    private lateinit var tvContactCount: TextView
     private lateinit var recyclerContacts: RecyclerView
     private lateinit var contactsAdapter: ContactsAdapter
     private lateinit var database: MessageDatabase
@@ -26,18 +29,20 @@ class ContactsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_contacts)
 
-        // initialize views
+        // dark status bar
+        window.statusBarColor = android.graphics.Color.parseColor("#111111")
+        window.decorView.systemUiVisibility = 0
+
         etName = findViewById(R.id.etContactName)
         etPhone = findViewById(R.id.etContactPhone)
         btnAdd = findViewById(R.id.btnAddContact)
+        btnBack = findViewById(R.id.btnBack)
+        tvContactCount = findViewById(R.id.tvContactCount)
         recyclerContacts = findViewById(R.id.recyclerContacts)
 
-        // initialize database
         database = MessageDatabase.getDatabase(this)
 
-        // setup adapter
         contactsAdapter = ContactsAdapter { contact ->
-            // delete contact when delete button clicked
             lifecycleScope.launch {
                 database.contactDao().deleteContact(contact)
                 Toast.makeText(
@@ -48,25 +53,29 @@ class ContactsActivity : AppCompatActivity() {
             }
         }
 
-        // setup recycler view
         recyclerContacts.apply {
             adapter = contactsAdapter
             layoutManager = LinearLayoutManager(this@ContactsActivity)
+        }
+
+        // back button
+        btnBack.setOnClickListener {
+            finish()
         }
 
         // observe contacts
         lifecycleScope.launch {
             database.contactDao().getAllContacts().collect { contacts ->
                 contactsAdapter.updateContacts(contacts)
+                tvContactCount.text = "${contacts.size} contacts"
             }
         }
 
-        // add contact button
+        // add contact
         btnAdd.setOnClickListener {
             val name = etName.text.toString().trim()
             val phone = etPhone.text.toString().trim()
 
-            // validate inputs
             if (name.isEmpty()) {
                 Toast.makeText(this, "Enter contact name", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
@@ -80,21 +89,15 @@ class ContactsActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // save to database
             lifecycleScope.launch {
                 database.contactDao().insertContact(
-                    EmergencyContact(
-                        name = name,
-                        phoneNumber = phone
-                    )
+                    EmergencyContact(name = name, phoneNumber = phone)
                 )
                 Toast.makeText(
                     this@ContactsActivity,
-                    "$name added as emergency contact",
+                    "✅ $name added",
                     Toast.LENGTH_SHORT
                 ).show()
-
-                // clear inputs
                 etName.text.clear()
                 etPhone.text.clear()
             }

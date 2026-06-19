@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -14,6 +15,7 @@ class ProfileActivity : AppCompatActivity() {
     private lateinit var etUserName: EditText
     private lateinit var etUserPhone: EditText
     private lateinit var btnSave: Button
+    private lateinit var btnBack: ImageButton
     private lateinit var tvDeviceId: TextView
     private lateinit var tvDeviceModel: TextView
 
@@ -21,27 +23,34 @@ class ProfileActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_profile)
 
+        // dark status bar
+        window.statusBarColor = android.graphics.Color.parseColor("#111111")
+        window.decorView.systemUiVisibility = 0
+
         etUserName = findViewById(R.id.etUserName)
         etUserPhone = findViewById(R.id.etUserPhone)
         btnSave = findViewById(R.id.btnSaveProfile)
+        btnBack = findViewById(R.id.btnBack)
         tvDeviceId = findViewById(R.id.tvDeviceId)
         tvDeviceModel = findViewById(R.id.tvDeviceModel)
 
         // load saved profile
         val prefs = getSharedPreferences("profile", Context.MODE_PRIVATE)
-        val savedName = prefs.getString("user_name", "")
-        val savedPhone = prefs.getString("user_phone", "")
+        etUserName.setText(prefs.getString("user_name", ""))
+        etUserPhone.setText(prefs.getString("user_phone", ""))
 
-        etUserName.setText(savedName)
-        etUserPhone.setText(savedPhone)
-
-        // show device info
+        // device info
         val deviceId = android.provider.Settings.Secure.getString(
             contentResolver,
             android.provider.Settings.Secure.ANDROID_ID
         )
-        tvDeviceId.text = "Device ID: $deviceId"
-        tvDeviceModel.text = "Device Model: ${android.os.Build.MODEL}"
+        tvDeviceId.text = "ID: $deviceId"
+        tvDeviceModel.text = android.os.Build.MODEL
+
+        // back button
+        btnBack.setOnClickListener {
+            finish()
+        }
 
         // save profile
         btnSave.setOnClickListener {
@@ -53,25 +62,22 @@ class ProfileActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // save to SharedPreferences
             prefs.edit()
                 .putString("user_name", name)
                 .putString("user_phone", phone)
                 .apply()
 
-            Toast.makeText(this, "Profile saved!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "✅ Profile saved!", Toast.LENGTH_SHORT).show()
             finish()
         }
     }
 
     companion object {
-        // get saved user name anywhere in app
         fun getUserName(context: Context): String {
             val prefs = context.getSharedPreferences("profile", Context.MODE_PRIVATE)
             return prefs.getString("user_name", android.os.Build.MODEL) ?: android.os.Build.MODEL
         }
 
-        // get saved user phone anywhere in app
         fun getUserPhone(context: Context): String {
             val prefs = context.getSharedPreferences("profile", Context.MODE_PRIVATE)
             return prefs.getString("user_phone", "") ?: ""

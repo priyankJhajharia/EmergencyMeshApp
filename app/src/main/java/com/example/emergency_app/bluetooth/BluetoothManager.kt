@@ -1,12 +1,14 @@
 package com.example.emergency_app.bluetooth
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,18 +19,19 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.IOException
-import android.util.Log
 import java.util.UUID
 
+@SuppressLint("MissingPermission")
 class BluetoothManager(private val context: Context) {
 
-    private val APP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+    private val APP_UUID: UUID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
     private val APP_NAME = "EmergencyMesh"
 
     private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private val scope = CoroutineScope(Dispatchers.IO)
 
     private val connectedSockets = mutableListOf<BluetoothSocket>()
+    private var isServerRunning = false
 
     private val _incomingMessages = MutableSharedFlow<String>()
     val incomingMessages: SharedFlow<String> = _incomingMessages
@@ -43,116 +46,147 @@ class BluetoothManager(private val context: Context) {
         return bluetoothAdapter != null && bluetoothAdapter.isEnabled
     }
 
-    // start server — runs continuously accepting connections
     fun startServer() {
-        scope.launch {
-            if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) return@launch
+        if (isServerRunning) return
+        isServerRunning = true
 
-            while (true) {
+        scope.launch {
+            if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) {
+                _connectionStatus.emit("BT: Missing permission")
+                return@launch
+            }
+
+            _connectionStatus.emit("BT: Server starting...")
+
+            while (isServerRunning) {
                 var serverSocket: BluetoothServerSocket? = null
                 try {
-                    serverSocket = bluetoothAdapter?.listenUsingRfcommWithServiceRecord(
-                        APP_NAME, APP_UUID
-                    )
-                    _connectionStatus.emit("BT: Waiting for connections...")
+                    serverSocket = try {
+                        bluetoothAdapter?.listenUsingRfcommWithServiceRecord(APP_NAME, APP_UUID)
+                    } catch (e: IOException) {
+                        bluetoothAdapter?.listenUsingInsecureRfcommWithServiceRecord(APP_NAME, APP_UUID)
+                    }
 
-                    val socket = serverSocket?.accept(30000)
+                    _connectionStatus.emit("BT: Waiting for connections...")
+                    Log.d("BT_DEBUG", "Server socket created, waiting...")
+
+                    val socket = serverSocket?.accept(60000)
+
                     if (socket != null) {
+                        Log.d("BT_DEBUG", "Connection accepted from ${socket.remoteDevice.name}")
                         serverSocket.close()
-                        handleConnection(socket)
+                        if (!connectedSockets.contains(socket)) {
+                            connectedSockets.add(socket)
+                        }
                         _connectedPeers.value = connectedSockets.size
-                        _connectionStatus.emit("BT: Connected to ${socket.remoteDevice.name}")
+                        _connectionStatus.emit("BT: Connected to ${socket.remoteDevice.name}!")
+                        handleConnection(socket)
                     }
                 } catch (e: IOException) {
+                    Log.e("BT_DEBUG", "Server error: ${e.message}")
                     serverSocket?.close()
                     _connectionStatus.emit("BT: Server restarting...")
-                    delay(2000)
+                    delay(3000)
                 }
             }
         }
     }
 
-    // connect to a specific device with retries
     fun connectToDevice(device: BluetoothDevice) {
         scope.launch {
-            if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) return@launch
+            if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) {
+                _connectionStatus.emit("BT: Missing permission")
+                return@launch
+            }
 
-            _connectionStatus.emit("BT: Connecting to ${device.name}...")
+            // If device was found via BLE scan, get Classic BT reference
+            // using the same MAC address so RFCOMM works
+            val actualDevice = if (device.type == BluetoothDevice.DEVICE_TYPE_LE) {
+                Log.d("BT_DEBUG", "BLE device detected, switching to Classic BT reference")
+                bluetoothAdapter?.getRemoteDevice(device.address) ?: device
+            } else {
+                device
+            }
 
             if (hasPermission(Manifest.permission.BLUETOOTH_SCAN)) {
                 bluetoothAdapter?.cancelDiscovery()
             }
+
+            _connectionStatus.emit("BT: Connecting to ${actualDevice.name}...")
+            Log.d("BT_DEBUG", "Connecting to ${actualDevice.name} - ${actualDevice.address}")
 
             delay(500)
 
             var socket: BluetoothSocket? = null
             var connected = false
 
-            // Method 1
-            try {
-                _connectionStatus.emit("BT: Method 1 trying...")
-                socket = device.createRfcommSocketToServiceRecord(APP_UUID)
-                socket.connect()
-                connected = true
-                _connectionStatus.emit("BT: Method 1 worked!")
-            } catch (e: IOException) {
-                _connectionStatus.emit("BT: Method 1 failed...")
-                socket?.close()
-                socket = null
-                delay(1000)
-            }
-
-            // Method 2
+            // Method 1 — secure RFCOMM
             if (!connected) {
                 try {
-                    _connectionStatus.emit("BT: Method 2 trying...")
-                    val method = device.javaClass.getMethod(
-                        "createRfcommSocket",
-                        Int::class.java
-                    )
-                    socket = method.invoke(device, 1) as BluetoothSocket
+                    _connectionStatus.emit("BT: Trying secure connection...")
+                    socket = actualDevice.createRfcommSocketToServiceRecord(APP_UUID)
                     socket.connect()
                     connected = true
-                    _connectionStatus.emit("BT: Method 2 worked!")
-                } catch (e: Exception) {
-                    _connectionStatus.emit("BT: Method 2 failed...")
-                    socket?.close()
+                    Log.d("BT_DEBUG", "Method 1 SUCCESS")
+                } catch (e: IOException) {
+                    Log.e("BT_DEBUG", "Method 1 FAILED: ${e.message}")
+                    try { socket?.close() } catch (ex: IOException) { }
                     socket = null
-                    delay(1000)
+                    delay(500)
                 }
             }
 
-            // Method 3
+            // Method 2 — insecure RFCOMM (no pairing needed)
             if (!connected) {
                 try {
-                    _connectionStatus.emit("BT: Method 3 trying...")
-                    socket = device.createInsecureRfcommSocketToServiceRecord(APP_UUID)
+                    _connectionStatus.emit("BT: Trying insecure connection...")
+                    socket = actualDevice.createInsecureRfcommSocketToServiceRecord(APP_UUID)
                     socket.connect()
                     connected = true
-                    _connectionStatus.emit("BT: Method 3 worked!")
+                    Log.d("BT_DEBUG", "Method 2 SUCCESS")
                 } catch (e: IOException) {
-                    _connectionStatus.emit("BT: All methods failed")
-                    socket?.close()
+                    Log.e("BT_DEBUG", "Method 2 FAILED: ${e.message}")
+                    try { socket?.close() } catch (ex: IOException) { }
+                    socket = null
+                    delay(500)
+                }
+            }
+
+            // Method 3 — reflection fallback
+            if (!connected) {
+                try {
+                    _connectionStatus.emit("BT: Trying fallback connection...")
+                    val method = actualDevice.javaClass.getMethod(
+                        "createRfcommSocket",
+                        Int::class.java
+                    )
+                    socket = method.invoke(actualDevice, 1) as BluetoothSocket
+                    socket.connect()
+                    connected = true
+                    Log.d("BT_DEBUG", "Method 3 SUCCESS")
+                } catch (e: Exception) {
+                    Log.e("BT_DEBUG", "Method 3 FAILED: ${e.message}")
+                    try { socket?.close() } catch (ex: IOException) { }
                     socket = null
                 }
             }
 
             if (connected && socket != null) {
-                connectedSockets.add(socket)
+                if (!connectedSockets.contains(socket)) {
+                    connectedSockets.add(socket)
+                }
                 _connectedPeers.value = connectedSockets.size
-                _connectionStatus.emit("BT: Connected to ${device.name}!")
+                _connectionStatus.emit("BT: Connected to ${actualDevice.name}! ✓")
+                Log.d("BT_DEBUG", "Successfully connected to ${actualDevice.name}")
                 handleConnection(socket)
             } else {
-                _connectionStatus.emit("BT: Failed — make sure both apps are open")
+                _connectionStatus.emit("BT: Failed to connect to ${actualDevice.name}")
+                Log.e("BT_DEBUG", "All connection methods failed")
             }
         }
     }
 
-    // handle a connected socket
     private fun handleConnection(socket: BluetoothSocket) {
-        if (!connectedSockets.contains(socket)) {
-            connectedSockets.add(socket)
-        }
         scope.launch {
             try {
                 val inputStream = socket.inputStream
@@ -162,19 +196,20 @@ class BluetoothManager(private val context: Context) {
                     val bytes = inputStream.read(buffer)
                     if (bytes == -1) break
                     val message = String(buffer, 0, bytes)
+                    Log.d("BT_DEBUG", "Received message: ${message.take(50)}")
                     _incomingMessages.emit(message)
                 }
             } catch (e: IOException) {
-                e.printStackTrace()
+                Log.e("BT_DEBUG", "Connection lost: ${e.message}")
             } finally {
-                socket.close()
+                try { socket.close() } catch (ex: IOException) { }
                 connectedSockets.remove(socket)
                 _connectedPeers.value = connectedSockets.size
+                _connectionStatus.emit("BT: Peer disconnected")
             }
         }
     }
 
-    // broadcast to all connected devices
     fun broadcastMessage(message: String) {
         scope.launch {
             val data = message.toByteArray()
@@ -188,12 +223,13 @@ class BluetoothManager(private val context: Context) {
                     deadSockets.add(socket)
                 }
             }
-            connectedSockets.removeAll(deadSockets)
-            _connectedPeers.value = connectedSockets.size
+            if (deadSockets.isNotEmpty()) {
+                connectedSockets.removeAll(deadSockets)
+                _connectedPeers.value = connectedSockets.size
+            }
         }
     }
 
-    // get paired devices
     fun scanForDevices(context: Context): List<BluetoothDevice> {
         if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) return emptyList()
         return bluetoothAdapter?.bondedDevices?.toList() ?: emptyList()
@@ -202,10 +238,12 @@ class BluetoothManager(private val context: Context) {
     fun getConnectedPeerCount(): Int = connectedSockets.size
 
     fun shutdown() {
+        isServerRunning = false
         connectedSockets.forEach {
             try { it.close() } catch (e: IOException) { }
         }
         connectedSockets.clear()
+        _connectedPeers.value = 0
     }
 
     private fun hasPermission(permission: String): Boolean {

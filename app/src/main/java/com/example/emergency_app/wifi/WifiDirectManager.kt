@@ -26,6 +26,8 @@ import java.net.Socket
 
 class WifiDirectManager(private val context: Context) {
 
+    private var clientSocket: Socket? = null  // Client's persistent socket to Group Owner
+
     private val manager: WifiP2pManager =
         context.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
     private val channel: Channel = manager.initialize(context, context.mainLooper, null)
@@ -40,8 +42,8 @@ class WifiDirectManager(private val context: Context) {
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected
 
-    private val _connectionStatus = MutableSharedFlow<String>()
-    val connectionStatus: SharedFlow<String> = _connectionStatus
+    private val _connectionStatus = MutableStateFlow("WiFi: Idle")
+    val connectionStatus: StateFlow<String> = _connectionStatus
 
     private var groupOwnerAddress: String? = null
     private var isGroupOwner = false
@@ -56,7 +58,7 @@ class WifiDirectManager(private val context: Context) {
                     manager.requestPeers(channel) { peerList ->
                         scope.launch {
                             val peers = peerList.deviceList.toList()
-                            _connectionStatus.emit("Found ${peers.size} WiFi peers")
+                            _connectionStatus.value = "Found ${peers.size} WiFi peers"
                             if (peers.isNotEmpty() && !_isConnected.value) {
                                 connectToPeer(peers.first())
                             }
@@ -65,6 +67,7 @@ class WifiDirectManager(private val context: Context) {
                 }
 
                 WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
+                    if (!hasWifiPermission()) return
                     manager.requestConnectionInfo(channel) { info ->
                         if (info.groupFormed) {
                             _isConnected.value = true
@@ -72,10 +75,10 @@ class WifiDirectManager(private val context: Context) {
                             groupOwnerAddress = info.groupOwnerAddress?.hostAddress
                             scope.launch {
                                 if (isGroupOwner) {
-                                    _connectionStatus.emit("WiFi Direct: Group owner")
+                                    _connectionStatus.value = "WiFi Direct: Group owner"
                                     startTcpServer()
                                 } else {
-                                    _connectionStatus.emit("WiFi Direct: Connected to group")
+                                    _connectionStatus.value = "WiFi Direct: Connected to group"
                                     groupOwnerAddress?.let {
                                         delay(1000)
                                         connectToGroupOwner(it)
@@ -85,8 +88,9 @@ class WifiDirectManager(private val context: Context) {
                         } else {
                             _isConnected.value = false
                             groupOwnerAddress = null
+                            clientSocket = null
                             scope.launch {
-                                _connectionStatus.emit("WiFi Direct: Disconnected")
+                                _connectionStatus.value = "WiFi Direct: Disconnected"
                             }
                         }
                     }
@@ -96,7 +100,7 @@ class WifiDirectManager(private val context: Context) {
                     val state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)
                     if (state == WifiP2pManager.WIFI_P2P_STATE_DISABLED) {
                         scope.launch {
-                            _connectionStatus.emit("WiFi Direct not available")
+                            _connectionStatus.value = "WiFi Direct not available"
                         }
                     }
                 }
@@ -125,10 +129,9 @@ class WifiDirectManager(private val context: Context) {
         }
     }
 
-    // ✅ only one discoverPeers function
     fun discoverPeers() {
         if (!hasWifiPermission()) {
-            scope.launch { _connectionStatus.emit("WiFi permission missing") }
+            scope.launch { _connectionStatus.value = "WiFi permission missing" }
             return
         }
         manager.stopPeerDiscovery(channel, object : WifiP2pManager.ActionListener {
@@ -139,24 +142,23 @@ class WifiDirectManager(private val context: Context) {
 
     private fun startDiscovery() {
         if (!hasWifiPermission()) return
-
         manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
                 scope.launch {
-                    _connectionStatus.emit("WiFi Direct: Scanning...")
+                    _connectionStatus.value = "WiFi Direct: Scanning..."
                 }
             }
             override fun onFailure(reason: Int) {
                 scope.launch {
                     when (reason) {
                         WifiP2pManager.ERROR -> {
-                            _connectionStatus.emit("WiFi error — toggle WiFi off/on")
+                            _connectionStatus.value = "WiFi error — toggle WiFi off/on"
                         }
                         WifiP2pManager.P2P_UNSUPPORTED -> {
-                            _connectionStatus.emit("WiFi Direct not supported")
+                            _connectionStatus.value = "WiFi Direct not supported"
                         }
                         WifiP2pManager.BUSY -> {
-                            _connectionStatus.emit("System busy — retrying in 5s...")
+                            _connectionStatus.value = "System busy — retrying in 5s..."
                             delay(5000)
                             manager.removeGroup(channel, object : WifiP2pManager.ActionListener {
                                 override fun onSuccess() { startDiscovery() }
@@ -164,7 +166,7 @@ class WifiDirectManager(private val context: Context) {
                             })
                         }
                         else -> {
-                            _connectionStatus.emit("WiFi failed ($reason) retrying...")
+                            _connectionStatus.value = "WiFi failed ($reason) retrying..."
                             delay(5000)
                             startDiscovery()
                         }
@@ -184,12 +186,12 @@ class WifiDirectManager(private val context: Context) {
         manager.connect(channel, config, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
                 scope.launch {
-                    _connectionStatus.emit("WiFi Direct: Connecting to ${device.deviceName}...")
+                    _connectionStatus.value = "WiFi Direct: Connecting to ${device.deviceName}..."
                 }
             }
             override fun onFailure(reason: Int) {
                 scope.launch {
-                    _connectionStatus.emit("WiFi Direct: Connection failed ($reason)")
+                    _connectionStatus.value = "WiFi Direct: Connection failed ($reason)"
                 }
             }
         })
@@ -200,10 +202,12 @@ class WifiDirectManager(private val context: Context) {
             var serverSocket: ServerSocket? = null
             try {
                 serverSocket = ServerSocket(PORT)
-                _connectionStatus.emit("WiFi Direct: TCP server ready")
+                _connectionStatus.value = "WiFi Direct: TCP server ready"
                 while (_isConnected.value) {
                     val client = serverSocket.accept()
-                    clientSockets.add(client)
+                    synchronized(clientSockets) {
+                        clientSockets.add(client)
+                    }
                     handleTcpClient(client)
                 }
             } catch (e: IOException) {
@@ -229,7 +233,10 @@ class WifiDirectManager(private val context: Context) {
                 e.printStackTrace()
             } finally {
                 socket.close()
-                clientSockets.remove(socket)
+                synchronized(clientSockets) {
+                    clientSockets.remove(socket)
+                }
+                if (socket == clientSocket) clientSocket = null
             }
         }
     }
@@ -239,14 +246,17 @@ class WifiDirectManager(private val context: Context) {
             try {
                 val socket = Socket()
                 socket.reuseAddress = true
-                socket.soTimeout = SOCKET_TIMEOUT
+                socket.soTimeout = 0 // no timeout — keep connection alive
                 socket.connect(InetSocketAddress(address, PORT), SOCKET_TIMEOUT)
-                clientSockets.add(socket)
-                _connectionStatus.emit("WiFi Direct: TCP connected!")
-                handleTcpClient(socket)
+                clientSocket = socket // save persistent reference
+                synchronized(clientSockets) {
+                    clientSockets.add(socket)
+                }
+                _connectionStatus.value = "WiFi Direct: TCP connected!"
+                handleTcpClient(socket) // start reading messages from Group Owner
             } catch (e: IOException) {
                 e.printStackTrace()
-                _connectionStatus.emit("TCP failed: ${e.message}")
+                _connectionStatus.value = "TCP failed: ${e.message}"
             }
         }
     }
@@ -255,29 +265,33 @@ class WifiDirectManager(private val context: Context) {
         if (!_isConnected.value) return
         scope.launch {
             val data = message.toByteArray()
-            val deadSockets = mutableListOf<Socket>()
             if (isGroupOwner) {
-                clientSockets.forEach { socket ->
-                    try {
-                        socket.getOutputStream().write(data)
-                        socket.getOutputStream().flush()
-                    } catch (e: IOException) {
-                        deadSockets.add(socket)
+                // Group Owner sends to ALL connected clients
+                val deadSockets = mutableListOf<Socket>()
+                synchronized(clientSockets) {
+                    clientSockets.forEach { socket ->
+                        try {
+                            socket.getOutputStream().write(data)
+                            socket.getOutputStream().flush()
+                        } catch (e: IOException) {
+                            deadSockets.add(socket)
+                        }
                     }
+                    clientSockets.removeAll(deadSockets)
                 }
-                clientSockets.removeAll(deadSockets)
             } else {
+                // Client reuses persistent socket — no new connection!
                 try {
-                    val socket = Socket()
-                    socket.connect(
-                        InetSocketAddress(groupOwnerAddress, PORT),
-                        SOCKET_TIMEOUT
-                    )
-                    socket.getOutputStream().write(data)
-                    socket.getOutputStream().flush()
-                    socket.close()
+                    clientSocket?.getOutputStream()?.write(data)
+                    clientSocket?.getOutputStream()?.flush()
                 } catch (e: IOException) {
                     e.printStackTrace()
+                    clientSocket = null
+                    _connectionStatus.value = "WiFi: Send failed, reconnecting..."
+                    groupOwnerAddress?.let {
+                        delay(1000)
+                        connectToGroupOwner(it)
+                    }
                 }
             }
         }
@@ -287,8 +301,11 @@ class WifiDirectManager(private val context: Context) {
         manager.removeGroup(channel, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
                 _isConnected.value = false
-                clientSockets.forEach { try { it.close() } catch (e: Exception) { } }
-                clientSockets.clear()
+                clientSocket = null
+                synchronized(clientSockets) {
+                    clientSockets.forEach { try { it.close() } catch (e: Exception) { } }
+                    clientSockets.clear()
+                }
             }
             override fun onFailure(reason: Int) {}
         })

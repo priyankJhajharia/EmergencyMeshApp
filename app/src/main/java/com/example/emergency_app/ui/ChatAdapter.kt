@@ -1,5 +1,7 @@
 package com.example.emergency_app.ui
 
+import android.text.util.Linkify
+import android.text.method.LinkMovementMethod
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -50,7 +52,12 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.MessageViewHolder>() {
         holder.tvContent.text = message.content
         holder.tvTimestamp.text = dateFormat.format(Date(message.timestamp))
 
-        // align my messages to right others to left
+        // make links clickable (Google Maps, URLs etc.)
+        holder.tvContent.autoLinkMask = Linkify.WEB_URLS
+        holder.tvContent.movementMethod = LinkMovementMethod.getInstance()
+        Linkify.addLinks(holder.tvContent, Linkify.WEB_URLS)
+
+        // align my messages to right, others to left
         val container = holder.itemView as LinearLayout
         if (message.isMine) {
             container.gravity = Gravity.END

@@ -3,7 +3,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5"
+    android:background="@color/background"
     android:fitsSystemWindows="true">
 
     <!-- Top toolbar -->
@@ -11,226 +11,276 @@
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:background="#CC0000"
+        android:background="@color/toolbar"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="8dp"
-        android:paddingEnd="8dp"
+        android:paddingEnd="12dp"
         android:layout_alignParentTop="true">
 
-        <!-- Hamburger menu button -->
         <ImageButton
             android:id="@+id/btnMenu"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:background="@null"
             android:src="@android:drawable/ic_menu_sort_by_size"
-            android:tint="#FFFFFF"
+            android:tint="@color/text_primary"
             android:contentDescription="Menu" />
 
-        <!-- App title -->
-        <TextView
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Emergency Mesh"
-            android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginStart="8dp" />
+            android:orientation="vertical"
+            android:layout_marginStart="8dp">
 
-        <!-- Connection status icon -->
-        <TextView
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="EMERGENCY MESH"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.1" />
+
+            <TextView
+                android:id="@+id/tvSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Initializing..."
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+        </LinearLayout>
+
+        <!-- Connection indicator -->
+        <View
             android:id="@+id/tvConnectionDot"
-            android:layout_width="12dp"
-            android:layout_height="12dp"
-            android:background="#888888"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:background="@drawable/circle_indicator"
             android:layout_marginEnd="8dp" />
 
     </LinearLayout>
 
-    <!-- Status bar -->
+    <!-- BT Status bar -->
     <TextView
         android:id="@+id/tvPeerCount"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@id/toolbar"
-        android:background="#AA0000"
+        android:background="@color/status_bar_bt"
         android:gravity="center"
-        android:padding="4dp"
-        android:text="Starting mesh network..."
-        android:textColor="#FFFFFF"
-        android:textSize="11sp" />
+        android:padding="3dp"
+        android:text="BT: Starting..."
+        android:textColor="@color/text_secondary"
+        android:textSize="10sp" />
 
-    <!-- Slide-out drawer menu (hidden by default) -->
+    <!-- WiFi Status bar -->
+    <TextView
+        android:id="@+id/tvWifiStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/tvPeerCount"
+        android:background="@color/status_bar_wifi"
+        android:gravity="center"
+        android:padding="3dp"
+        android:text="WiFi: Starting..."
+        android:textColor="@color/text_secondary"
+        android:textSize="10sp" />
+
+    <!-- Drawer overlay -->
+    <View
+        android:id="@+id/drawerOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#AA000000"
+        android:visibility="gone"
+        android:layout_below="@id/toolbar" />
+
+    <!-- Drawer menu -->
     <LinearLayout
         android:id="@+id/drawerMenu"
-        android:layout_width="220dp"
+        android:layout_width="260dp"
         android:layout_height="match_parent"
         android:layout_below="@id/toolbar"
-        android:background="#FFFFFF"
+        android:background="@drawable/bg_drawer"
         android:orientation="vertical"
-        android:elevation="8dp"
+        android:elevation="16dp"
         android:visibility="gone"
-        android:padding="8dp">
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp">
 
-        <!-- Find Peers -->
-        <LinearLayout
-            android:id="@+id/menuFindPeers"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="8dp">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@android:drawable/ic_menu_search"
-                android:tint="#CC0000" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Find Peers"
-                android:textColor="#333333"
-                android:textSize="16sp"
-                android:layout_marginStart="12dp" />
-
-        </LinearLayout>
-
-        <!-- Divider -->
-        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE"/>
-
-        <!-- Contacts -->
-        <LinearLayout
-            android:id="@+id/menuContacts"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="8dp">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@android:drawable/ic_menu_myplaces"
-                android:tint="#CC0000" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Emergency Contacts"
-                android:textColor="#333333"
-                android:textSize="16sp"
-                android:layout_marginStart="12dp" />
-
-        </LinearLayout>
-
-        <!-- Divider -->
-        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE"/>
-
-        <!-- Profile -->
-        <LinearLayout
-            android:id="@+id/menuProfile"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="8dp">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@android:drawable/ic_menu_my_calendar"
-                android:tint="#CC0000" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="My Profile"
-                android:textColor="#333333"
-                android:textSize="16sp"
-                android:layout_marginStart="12dp" />
-
-        </LinearLayout>
-
-        <!-- Divider -->
-        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE"/>
-
-        <!-- Clear Messages -->
-        <LinearLayout
-            android:id="@+id/menuClearMessages"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="8dp">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@android:drawable/ic_menu_delete"
-                android:tint="#CC0000" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Clear Messages"
-                android:textColor="#333333"
-                android:textSize="16sp"
-                android:layout_marginStart="12dp" />
-
-        </LinearLayout>
-
-        <!-- Divider -->
-        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#EEEEEE"/>
-
-        <!-- Connection info -->
+        <!-- App info -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="8dp"
-            android:layout_marginTop="8dp"
-            android:background="#FFF5F5">
+            android:padding="16dp"
+            android:layout_marginBottom="8dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Network Status"
-                android:textColor="#CC0000"
-                android:textSize="12sp"
-                android:textStyle="bold" />
+                android:text="EMERGENCY MESH"
+                android:textColor="@color/emergency_red"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.1" />
 
             <TextView
                 android:id="@+id/tvMenuStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Initializing..."
-                android:textColor="#666666"
+                android:textColor="@color/text_secondary"
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
 
         </LinearLayout>
 
-    </LinearLayout>
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/surfaceVariant"
+            android:layout_marginBottom="8dp" />
 
-    <!-- Overlay to close drawer when clicking outside -->
-    <View
-        android:id="@+id/drawerOverlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#88000000"
-        android:visibility="gone"
-        android:layout_below="@id/toolbar" />
+        <!-- Find Peers -->
+        <LinearLayout
+            android:id="@+id/menuFindPeers"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:background="@drawable/bg_menu_item"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="4dp">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@android:drawable/ic_menu_search"
+                android:tint="@color/emergency_red" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Find Peers"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:layout_marginStart="16dp" />
+
+        </LinearLayout>
+
+        <!-- Contacts -->
+        <LinearLayout
+            android:id="@+id/menuContacts"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:background="@drawable/bg_menu_item"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="4dp">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@android:drawable/ic_menu_myplaces"
+                android:tint="@color/emergency_red" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Emergency Contacts"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:layout_marginStart="16dp" />
+
+        </LinearLayout>
+
+        <!-- Profile -->
+        <LinearLayout
+            android:id="@+id/menuProfile"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:background="@drawable/bg_menu_item"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="4dp">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@android:drawable/ic_menu_my_calendar"
+                android:tint="@color/emergency_red" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="My Profile"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:layout_marginStart="16dp" />
+
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/surfaceVariant"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Clear Messages -->
+        <LinearLayout
+            android:id="@+id/menuClearMessages"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:background="@drawable/bg_menu_item"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@android:drawable/ic_menu_delete"
+                android:tint="@color/warning_orange" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Clear Messages"
+                android:textColor="@color/warning_orange"
+                android:textSize="15sp"
+                android:layout_marginStart="16dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
 
     <!-- Messages list -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerMessages"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/tvPeerCount"
+        android:layout_below="@id/tvWifiStatus"
         android:layout_above="@id/bottomLayout"
         android:padding="8dp"
         android:clipToPadding="false" />
@@ -241,53 +291,59 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#FFFFFF"
+        android:background="@color/toolbar"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
         android:layout_alignParentBottom="true">
 
         <!-- SOS Button -->
-        <Button
+        <TextView
             android:id="@+id/btnSos"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:background="#FF0000"
-            android:text="🆘 SOS EMERGENCY ALERT"
+            android:layout_height="50dp"
+            android:background="@drawable/bg_sos_button"
+            android:text="🆘  HOLD FOR SOS EMERGENCY"
             android:textColor="#FFFFFF"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
-            android:layout_marginTop="6dp" />
+            android:gravity="center"
+            android:letterSpacing="0.05"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginBottom="8dp" />
 
         <!-- Message input row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:padding="8dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
             android:gravity="center_vertical">
 
             <EditText
                 android:id="@+id/etMessage"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="44dp"
                 android:layout_weight="1"
-                android:hint="Type a message..."
-                android:textColor="#000000"
-                android:textColorHint="#999999"
-                android:background="#EEEEEE"
-                android:padding="10dp"
-                android:maxLines="3"
+                android:hint="Message..."
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_hint"
+                android:background="@drawable/bg_input"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:maxLines="1"
                 android:inputType="text"
                 android:layout_marginEnd="8dp" />
 
-            <Button
+            <ImageButton
                 android:id="@+id/btnSend"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="#CC0000"
-                android:text="Send"
-                android:textColor="#FFFFFF"
-                android:padding="10dp" />
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_send_button"
+                android:src="@android:drawable/ic_menu_send"
+                android:tint="#FFFFFF"
+                android:contentDescription="Send" />
 
         </LinearLayout>
 

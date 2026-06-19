@@ -31,7 +31,12 @@ data class MeshMessage(
     val delivered: Boolean = false,
     val isMine: Boolean = false,
 
-    // ✅ new — only filled for SOS messages
+    // new — only filled for SOS messages
     val latitude: Double? = null,
-    val longitude: Double? = null
+    val longitude: Double? = null,
+
+    // new — tracks who this message belongs to in 1-to-1 conversation
+    // for sent messages: the deviceId of the peer you sent it to
+    // for received messages: same as senderId
+    val recipientId: String? = null
 )
